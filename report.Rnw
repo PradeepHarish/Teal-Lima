@@ -1,0 +1,10 @@
+\documentclass{article}
+
+\begin{document}
+
+\title{\Sexpr{input$paramAnalyse}}
+\maketitle
+output$desStatsTable
+
+
+\end{document}
