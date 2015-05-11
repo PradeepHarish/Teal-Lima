@@ -1,6 +1,11 @@
 library(shiny)
 
-library(dataview) #For Tree View
+library(dataview)      #For Tree View
+
+library(data.table)    #For Data Table Computations..duh
+library(plotrix)       #For std.error Fx
+library(psych)         #For Summary Stats
+library(plyr)          #for cleaning up dataframe vector inequalities
 
 
 
@@ -24,20 +29,68 @@ shinyServer(function(input, output) {
   
   #Use dataSorted() to point to your CSV file, processed by the FileProcFunction. The output is a superlist, containing child lists of 
   #the input dataset, split by strain
-  dataSorted <- reactive({SortDataIntoStrainFunction(listCSV())})
+  dataSorted <- reactive({SortDataIntoStrainFunction(listCSV(),input$cumuStrain)})
   
-  ####--------####
+  
   print("[LOG] Preload complete: Check for errors")
   
   
-  ####Data Outputs####
-  print("[LOG] Data Output Init")
+  #------------------------------------------------------------------------------------------------------------------------------
+  #                                                   DATA OUTPUTS  
+  #------------------------------------------------------------------------------------------------------------------------------
   
+  print("[LOG] Data Output Init")  
   
-  output$desStatsTable <- renderText({ 
+  output$desStatsRawMassGraphTable <- renderTable({   
     
-    print(tree.view(dataSorted()))
+    #Des Stats for Graph: WORKS!    
+    #renaming to something manageable
+    t <- dataSorted()     
+    #so that nothing funny happens
+    cumuStrain_i <-as.character(input$cumuStrain)
+    #init for the loop
+    dataProc <- list()
     
+    for(i in 1:length(t))      
+    {  
+      #setting the name to the strain
+      name <- as.character(t[[i]][[1]][cumuStrain_i][[1]][[1]]) #By jove, this is huge and needlessly complicated
+      #calling Fx to display mean and SE weekly on a per strain basis
+      y <- DesStatsForGraphFunction(t,i)
+      #Appending answers to master list
+      dataProc[[name]]<-list(y)      
+    }  
+    #converting to dataframe so shiny can read it and returning this to render table
+    dataProc <- as.data.frame(dataProc)
+    return(dataProc)
+    
+    
+    
+    
+  })
+  output$desStatsCumuMassGraphTable <- renderTable({   
+    #Des Stats Cumu Mass for Graph: WORKS!    
+    #renaming to something manageable
+    x <- dataSorted()
+    #converting to cumumass table instead of raw mass
+    t <- ConvertRawToSelfNormFunction(x,input$normColID,input$initColID,input$finalColID,input$cumuStrain)    
+    # so that nothing funny happens
+    cumuStrain_i <-as.character(input$cumuStrain)
+    #init for the loop
+    dataProc <- list()
+    
+    for(i in 1:length(t))      
+    { 
+      #setting the name to the strain
+      name <- as.character(t[[i]][[1]])
+      #calling Fx to display mean and SE weekly on a per strain basis
+      y<-DesStatsForGraphFunction(t,i,2)            
+      #Appending answers to master list
+      dataProc[[name]]<-list(y)      
+    }  
+    #converting to dataframe so shiny can read it and returning this to render table
+    dataProc <- as.data.frame(dataProc)
+    return(dataProc)  
   })
   
   print("[LOG] Data Output Complete: Check for errors")
@@ -48,6 +101,89 @@ shinyServer(function(input, output) {
 ##################################################################################################################################
 #                                                         BACKEND FUNCTIONS
 ##################################################################################################################################
+
+#------------------------------------------------------------------------------------------------------------------------------
+#                                                   STATISTICS 
+#------------------------------------------------------------------------------------------------------------------------------
+
+DesStatsForGraphFunction <- function(dataInput,i,dataStructure = 1){
+  
+  if(dataStructure ==1){
+    #Structure 1 for raw muscle mass  
+    #slightly less ugly solution.            
+    x <- (dataInput[[i]][[1]])
+    Mean <- rapply(x,mean,classes="numeric")
+    StdError <- rapply(x,std.error,classes="numeric")
+    tabularOutput <- cbind(Mean,StdError)
+    
+    return(tabularOutput)
+  }
+  
+  else if(dataStructure ==2){
+    #Structure 2 for self normalised muscle mass 
+    x <- (dataInput[[i]][[2]])    
+    Mean <- lapply(x,mean)
+    StdError <- lapply(x,std.error)
+    tabularOutput <- cbind(Mean,StdError)
+    
+    return(tabularOutput)
+  }
+  
+}
+
+ConvertRawToSelfNormFunction <- function(t,normColID,initColID,finalColID,cumuStrain){
+  
+  #need these for the nested loops
+  dataTempTable <- list()  
+  dataTempTable2 <- list()
+  
+  #so that we are all on the same page
+  normColID_i <- as.numeric(normColID)
+  initColID_i <- as.numeric(initColID)
+  finalColID_i <- as.numeric(finalColID)
+  cumuStrain_i <-as.character(cumuStrain)
+  
+  #nested loops to reiterate over table columns 
+  for(i in 1:length(t))      
+  { 
+    #Loop 1 goes accross each strain
+    dataInput <- t[[i]][[1]]    
+    #[cumuStrain_i][[1]] gives the strain column, the extra [[1]] is for just printing one element
+    name <- as.character(dataInput[cumuStrain_i][[1]][[1]])     
+    
+    for(j in initColID_i:finalColID_i)
+    {
+      #Loop 2 goes into each tcolumn, from the strain table      
+      #adjusting for index of dataframe to prevent nulls 
+      k <- j-initColID_i+1      
+      #Self normalisation to the value indicated by user and stich as child list to strain parent
+      dataTempTable[[k]] <- (dataInput[j][[1]] - dataInput[normColID_i][[1]])    
+    }    
+    #final stiching of strain child lists to master parent list
+    #Double instance of name to smooth data handling downstream
+    dataTempTable2[[name]] <- list(name,dataTempTable)   
+  }    
+  return(as.list(dataTempTable2))
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#------------------------------------------------------------------------------------------------------------------------------
+#                                                   DATA I/O  
+#------------------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -79,36 +215,53 @@ FileProcFunction <- function(csvImport,animalID_i,cumuStrain_i){
   #CSV Parser 
   print("[LOG] File Proc Init")
   Data <- read.csv(csvImport)
-  Data <- within(Data, {
-    FinalID <-  factor(as.character(Data[[cumuStrain_i]])) 
-    AnimalID <- factor(as.character(Data[[animalID_i]]))    
-  })
-  
-  #The below is not needed, as a reactive function in the main shiny function takes care of this.
-  #dataOutput <- SortDataIntoStrainFunction(Data)  
-  dataOutput <- Data
-  return(dataOutput)
-  print("[LOG] File Proc Complete")
+  Data <- within(Data, 
+{  
+  FinalID <-  factor(as.character(Data[[cumuStrain_i]]))
+  AnimalID <- factor(as.character(Data[[animalID_i]]))    
+})
+
+#The below is not needed, as a reactive function in the main shiny function takes care of this.
+#dataOutput <- SortDataIntoStrainFunction(Data) return(dataOutput) 
+return(Data)
+print("[LOG] File Proc Complete")
 }
 
 
 
-SortDataIntoStrainFunction <- function(y){
+SortDataIntoStrainFunction <- function(y,cumuStrain){
   
   #init datainput as a list for loop. 
   dataInput <- list()
+  #ensure nothing funny is going on here
+  cumuStrain_i <- as.character(cumuStrain)
   
-  for(i in levels(y$Strain))
+  for(i in levels(y[cumuStrain_i][[1]]))
   {
     #subset function to extract relevant values
-    x <- subset(y, y$Strain == i)  
+    x <- subset(y, y[cumuStrain_i][[1]] == i)  
     #renaming for loop and assigning
     name <- paste("sub", i, sep = "")
     assign(name, x)
     #attaching child to prent
     dataInput[[name]]<-list(x)
   }  
+  
+  #return master list containing all other lists
   return(dataInput)
+  
+  #For Testing: Input of Strain not user driven
+  #   for(i in levels(y$Strain))
+  #   {
+  #     #subset function to extract relevant values
+  #     x <- subset(y, y$Strain == i)  
+  #     #renaming for loop and assigning
+  #     name <- paste("sub", i, sep = "")
+  #     assign(name, x)
+  #     #attaching child to prent
+  #     dataInput[[name]]<-list(x)
+  #   }  
+  
 }
 
 

@@ -14,6 +14,10 @@ shinyUI(fluidPage(
                    textInput("cumuStrain", label = ("Animal strain and treatment group"),value = "Strain"),  
                    textInput("animalID", label = ("ID of individual animal"),value = "MID"), 
                    
+                   p("Also input the column numbers for the following:"),
+                   numericInput("normColID", label = ("Normalise against column number"),value = "4"),  
+                   numericInput("initColID", label = ("The first column containing data"),value = "4"),  
+                   numericInput("finalColID", label = ("The last column containing data"),value = "13"),
                    
                    br(),
                    h4(strong("Step 2:"),"File upload"),
@@ -25,8 +29,10 @@ shinyUI(fluidPage(
                    p(" This was created by Pradeep Harish. He can be reached at pradeep@harish.rr.nu")),
   mainPanel( 
     textOutput("Log"),
-    h4("Descriptive Statistics:"),
-    textOutput("desStatsTable"),
+    h4("Descriptive Statistics (Raw Mass):"),
+    tableOutput("desStatsRawMassGraphTable"),
+    h4("Descriptive Statistics (Weekly Change of Mass):"),
+    tableOutput("desStatsCumuMassGraphTable"),
     
     
     downloadButton("downloadPDF", "Download Analysis report as PDF"),
