@@ -18,6 +18,7 @@ shinyUI(fluidPage(
                    numericInput("normColID", label = ("Normalise against column number"),value = "4"),  
                    numericInput("initColID", label = ("The first column containing data"),value = "4"),  
                    numericInput("finalColID", label = ("The last column containing data"),value = "13"),
+                   numericInput("sigWeekNumber", label = ("The week to calculate multiple comparisons for"),value = "10"),
                    
                    br(),
                    h4(strong("Step 2:"),"File upload"),
@@ -31,8 +32,13 @@ shinyUI(fluidPage(
     textOutput("Log"),
     h4("Descriptive Statistics (Raw Mass):"),
     tableOutput("desStatsRawMassGraphTable"),
+    h4("Significance Testing (Raw Mass):"),
+    tableOutput("sigTestRawMassTable"),
     h4("Descriptive Statistics (Weekly Change of Mass):"),
     tableOutput("desStatsCumuMassGraphTable"),
+    h4("Significance Testing (Cumulative Mass):"),
+    tableOutput("sigTestCumuMassTable"),
+  
     
     
     downloadButton("downloadPDF", "Download Analysis report as PDF"),

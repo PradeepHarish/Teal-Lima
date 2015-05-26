@@ -5,8 +5,8 @@ library(dataview)      #For Tree View
 library(data.table)    #For Data Table Computations..duh
 library(plotrix)       #For std.error Fx
 library(psych)         #For Summary Stats
-library(plyr)          #for cleaning up dataframe vector inequalities
-
+library(plyr)          #For cleaning up dataframe vector inequalities
+library(reshape2)      #For Short to Long form data table conversion
 
 
 ##################################################################################################################################
@@ -62,12 +62,11 @@ shinyServer(function(input, output) {
     }  
     #converting to dataframe so shiny can read it and returning this to render table
     dataProc <- as.data.frame(dataProc)
-    return(dataProc)
-    
-    
-    
-    
+    return(dataProc)  
   })
+  
+  #--------------------------------------------------------------------------------------------------------------------------------#
+  
   output$desStatsCumuMassGraphTable <- renderTable({   
     #Des Stats Cumu Mass for Graph: WORKS!    
     #renaming to something manageable
@@ -93,6 +92,69 @@ shinyServer(function(input, output) {
     return(dataProc)  
   })
   
+  #--------------------------------------------------------------------------------------------------------------------------------#
+  
+  output$sigTestRawMassTable <- renderTable ({
+    dataProc <-list()
+    
+    for(i in input$initColID:input$finalColID) {
+      
+      t <- tTestFunction(listCSV(),i,input$cumuStrain)
+      name <- colnames(listCSV())[[i]]
+      dataProc[[name]]<-t[[3]]      
+    }
+   dataProc <- as.data.frame(dataProc[input$sigWeekNumber])   
+   return(dataProc)
+  })
+  #--------------------------------------------------------------------------------------------------------------------------------#
+  
+  output$sigTestCumuMassTable <- renderTable ({
+  
+    x <- dataSorted()
+    #converting to cumumass table instead of raw mass
+    t <- ConvertRawToSelfNormFunction(x,input$normColID,input$initColID,input$finalColID,input$cumuStrain)    
+  print(tree.view(t))
+  })
+  
+  #--------------------------------------------------------------------------------------------------------------------------------#
+  
+#   output$desStatsRawMassGraph <- renderPlot({
+#     
+#     
+#     
+#     #renaming to something manageable
+#     t <- dataSorted()     
+#     #so that nothing funny happens
+#     cumuStrain_i <-as.character(input$cumuStrain)
+#     #init for the loop
+#     dataProc <- list()
+#     
+#     for(i in 1:length(t))      
+#     {  
+#       #setting the name to the strain
+#       name <- as.character(t[[i]][[1]][cumuStrain_i][[1]][[1]]) #By jove, this is huge and needlessly complicated
+#       #calling Fx to display mean and SE weekly on a per strain basis
+#       y <- DesStatsForGraphFunction(t,i)
+#       #Appending answers to master list
+#       dataProc[[name]]<-list(y)      
+#     }  
+#     #converting to dataframe so shiny can read it and returning this to render table
+#     dataProc <- as.data.frame(dataProc)
+#         
+#     plot(dataProc[[1]])
+#     lines(dataProc[[4]], lwd=1.5)
+#     for (i in 1:10){ 
+#       
+#       if(i%%2==0)
+#       {
+#         
+#         lines(dataProc[[i]], lwd=1.5)
+#       }
+#     } 
+#     
+#     
+#   })
+  
   print("[LOG] Data Output Complete: Check for errors")
 })
 
@@ -102,9 +164,9 @@ shinyServer(function(input, output) {
 #                                                         BACKEND FUNCTIONS
 ##################################################################################################################################
 
-#------------------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------------------------------#
 #                                                   STATISTICS 
-#------------------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------------------------------#
 
 DesStatsForGraphFunction <- function(dataInput,i,dataStructure = 1){
   
@@ -130,6 +192,8 @@ DesStatsForGraphFunction <- function(dataInput,i,dataStructure = 1){
   }
   
 }
+
+#--------------------------------------------------------------------------------------------------------------------------------#
 
 ConvertRawToSelfNormFunction <- function(t,normColID,initColID,finalColID,cumuStrain){
   
@@ -166,9 +230,14 @@ ConvertRawToSelfNormFunction <- function(t,normColID,initColID,finalColID,cumuSt
   return(as.list(dataTempTable2))
 }
 
+#--------------------------------------------------------------------------------------------------------------------------------#
 
-
-
+tTestFunction <- function(dataInput,ColID,cumuStrain){
+  
+  t <- pairwise.t.test(dataInput[ColID][[1]], dataInput[cumuStrain][[1]], p.adjust.method ="none")
+  return(t) 
+  
+}
 
 
 
